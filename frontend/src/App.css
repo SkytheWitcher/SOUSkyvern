@@ -1,0 +1,20 @@
+.App {
+  text-align: center;
+  margin: 20px;
+}
+
+input, textarea {
+  margin: 10px;
+  padding: 10px;
+  width: 300px;
+}
+
+button {
+  padding: 10px 20px;
+  margin: 10px;
+  cursor: pointer;
+}
+
+h1, h2 {
+  color: #333;
+}
