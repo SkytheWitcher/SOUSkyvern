@@ -1,89 +1,84 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import axios from 'axios';
 import './App.css';
 
 function TaskManager() {
   const [url, setUrl] = useState('');
   const [evaluationCriteria, setEvaluationCriteria] = useState('');
-  const [taskId, setTaskId] = useState('');
   const [taskResult, setTaskResult] = useState(null);
   const [extractedLinks, setExtractedLinks] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [statusChecking, setStatusChecking] = useState(false);
+  const [showExtractLinksOption, setShowExtractLinksOption] = useState(false);
 
-  const initiateWidgetCheckTask = async () => {
+  const initiateCheckAndExtractTask = async () => {
     setLoading(true);
     try {
-      console.log('Initiating widget check task...');
-      const response = await axios.post('http://localhost:3000/initiate-widget-check-task', { url });
-      console.log('Widget check task initiated:', response.data);
-      setTaskId(response.data.task_id);
+      const response = await axios.post('http://localhost:3000/initiate-check-and-extract-task', { url });
+      const { task_id } = response.data;
+
+      // Poll for task completion
+      const taskStatus = await pollTaskStatus(task_id);
+      const { has_widget, reasoning, links } = taskStatus.extracted_information;
+
+      setTaskResult({ has_widget, reasoning });
+      setExtractedLinks(links || []);
       setLoading(false);
-      setStatusChecking(true);
+
+      if (!has_widget) {
+        setShowExtractLinksOption(true);
+      } else {
+        alert('Accessibility widget found!');
+      }
     } catch (error) {
-      console.error('Error initiating widget check task:', error);
+      console.error('Error initiating check and extract task:', error);
       setLoading(false);
     }
   };
 
-  const initiateExtractLinksTask = async () => {
-    setLoading(true);
-    try {
-      console.log('Initiating extract links task...');
-      const response = await axios.post('http://localhost:3000/initiate-extract-links-task', { url });
-      console.log('Extract links task initiated:', response.data);
-      setTaskId(response.data.task_id);
-      setLoading(false);
-      setStatusChecking(true);
-    } catch (error) {
-      console.error('Error initiating extract links task:', error);
-      setLoading(false);
+  const pollTaskStatus = async (task_id) => {
+    let status = 'queued';
+    let result = null;
+
+    while (status === 'queued' || status === 'running') {
+      try {
+        const response = await axios.get(`http://localhost:3000/task-status/${task_id}`);
+        result = response.data;
+        status = result.status;
+
+        if (status === 'complete') {
+          return result;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 5000)); // wait for 5 seconds before polling again
+      } catch (error) {
+        console.error('Error checking task status:', error);
+        break;
+      }
     }
+
+    return result;
   };
 
   const initiateEvaluationTask = async (link) => {
     setLoading(true);
     try {
-      console.log('Initiating evaluation task for link:', link);
-      const response = await axios.post('http://localhost:3000/initiate-evaluation-task', { url: link, evaluation_criteria: evaluationCriteria.split('\n') });
-      console.log('Evaluation task initiated:', response.data);
-      setTaskId(response.data.task_id);
+      const response = await axios.post('http://localhost:3000/initiate-evaluation-task', {
+        url: link,
+        evaluation_criteria: evaluationCriteria.split('\n')
+      });
+      const { task_id } = response.data;
+
+      // Poll for task completion
+      const taskStatus = await pollTaskStatus(task_id);
+      const { compliance, issues } = taskStatus.extracted_information;
+
+      alert(`Evaluation Result for ${link}:\nCompliance: ${compliance}\nIssues: ${issues.join(', ')}`);
       setLoading(false);
-      setStatusChecking(true);
     } catch (error) {
       console.error('Error initiating evaluation task:', error);
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (statusChecking && taskId) {
-      const interval = setInterval(async () => {
-        try {
-          console.log('Checking task status for task ID:', taskId);
-          const response = await axios.get(`http://localhost:3000/task-status/${taskId}`);
-          console.log('Task status response:', response.data);
-          setTaskResult(response.data);
-          if (response.data.status !== 'queued' && response.data.status !== 'running') {
-            setStatusChecking(false);
-            clearInterval(interval);
-
-            // Handle the result of the widget check task
-            if (response.data.extracted_information && response.data.extracted_information.has_widget) {
-              alert("Accessibility widget found. No further checks needed.");
-              setExtractedLinks([]);  // Clear any extracted links
-            } else if (response.data.extracted_information && response.data.extracted_information.links) {
-              setExtractedLinks(response.data.extracted_information.links);
-            }
-          }
-        } catch (error) {
-          console.error('Error checking task status:', error);
-        }
-      }, 5000); // Check every 5 seconds
-
-      return () => clearInterval(interval);
-    }
-  }, [statusChecking, taskId]);
 
   return (
     <div className="App">
@@ -99,19 +94,13 @@ function TaskManager() {
         value={evaluationCriteria}
         onChange={(e) => setEvaluationCriteria(e.target.value)}
       />
-      <button onClick={initiateWidgetCheckTask} disabled={loading}>
-        {loading ? 'Checking Widget...' : 'Check Widget'}
+      <button onClick={initiateCheckAndExtractTask} disabled={loading}>
+        {loading ? 'Checking...' : 'Check Website'}
       </button>
-      {taskId && (
+      {showExtractLinksOption && (
         <div>
-          <h2>Task ID: {taskId}</h2>
+          <h2>No accessibility widget found. Would you like to evaluate the extracted links based on your criteria?</h2>
         </div>
-      )}
-      {taskResult && (
-        <div>
-          <h2>Task Result</h2>
-          <pre>{JSON.stringify(taskResult, null, 2)}</pre>
-          </div>
       )}
       {extractedLinks.length > 0 && (
         <div>
@@ -121,7 +110,7 @@ function TaskManager() {
               <li key={index}>
                 {link}
                 <button onClick={() => initiateEvaluationTask(link)} disabled={loading}>
-                  {loading ? 'Checking...' : 'Evaluate'}
+                  {loading ? 'Evaluating...' : 'Evaluate'}
                 </button>
               </li>
             ))}

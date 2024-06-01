@@ -12,51 +12,25 @@ const API_KEY = process.env.API_KEY;
 const BASE_URL = 'https://api.skyvern.com/api/v1/tasks';
 const PORT = process.env.PORT || 3000;
 
-app.post('/initiate-widget-check-task', async (req, res) => {
+app.post('/initiate-check-and-extract-task', async (req, res) => {
   const { url } = req.body;
 
-  const data_extraction_goal = 'Check if an accessibility widget exists on the homepage by identifying common accessibility widget elements or their distinctive features.';
+  const data_extraction_goal = `
+    Check if an accessibility widget exists on the homepage by identifying common accessibility widget elements or their distinctive features.
+    If there is no clear and immediate indication of an accessibility widget upon entering the site, extract all of the links available on the homepage.
+  `;
 
   const extracted_information_schema = {
     type: "object",
     properties: {
-      has_widget: { type: "boolean" }
-    },
-    required: ["has_widget"]
-  };
-
-  try {
-    const response = await axios.post(BASE_URL, {
-      url,
-      data_extraction_goal,
-      proxy_location: 'RESIDENTIAL',
-      extracted_information_schema
-    }, {
-      headers: {
-        'x-api-key': API_KEY
-      }
-    });
-    res.json(response.data);
-  } catch (error) {
-    console.error('Error initiating widget check task:', error.message);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post('/initiate-extract-links-task', async (req, res) => {
-  const { url } = req.body;
-
-  const data_extraction_goal = 'Extract all of the links available on the homepage.';
-
-  const extracted_information_schema = {
-    type: "object",
-    properties: {
+      has_widget: { type: "boolean" },
+      reasoning: { type: "string" },
       links: {
         type: "array",
         items: { type: "string" }
       }
     },
-    required: ["links"]
+    required: ["has_widget", "reasoning"]
   };
 
   try {
@@ -70,9 +44,26 @@ app.post('/initiate-extract-links-task', async (req, res) => {
         'x-api-key': API_KEY
       }
     });
+
+    res.json({ task_id: response.data.task_id });
+  } catch (error) {
+    console.error('Error initiating check and extract task:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/task-status/:taskId', async (req, res) => {
+  const { taskId } = req.params;
+  try {
+    const response = await axios.get(`${BASE_URL}/${taskId}`, {
+      headers: {
+        'x-api-key': API_KEY
+      }
+    });
+
     res.json(response.data);
   } catch (error) {
-    console.error('Error initiating extract links task:', error.message);
+    console.error('Error checking task status:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -102,24 +93,10 @@ app.post('/initiate-evaluation-task', async (req, res) => {
         'x-api-key': API_KEY
       }
     });
-    res.json(response.data);
+
+    res.json({ task_id: response.data.task_id });
   } catch (error) {
     console.error('Error initiating evaluation task:', error.message);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get('/task-status/:taskId', async (req, res) => {
-  const { taskId } = req.params;
-  try {
-    const response = await axios.get(`${BASE_URL}/${taskId}`, {
-      headers: {
-        'x-api-key': API_KEY
-      }
-    });
-    res.json(response.data);
-  } catch (error) {
-    console.error('Error checking task status:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
