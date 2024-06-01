@@ -82,7 +82,7 @@ function TaskManager() {
 
   return (
     <div className="App">
-      <h1>WCAG Compliance Checker</h1>
+      <h1>SOU-Skyvern WCAG Criteria Checker</h1>
       <input
         type="text"
         placeholder="Enter website URL"
