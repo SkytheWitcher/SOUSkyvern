@@ -68,8 +68,8 @@ app.get('/task-status/:taskId', async (req, res) => {
   }
 });
 
-app.post('/initiate-evaluation-task', async (req, res) => {
-  const { url, evaluation_criteria } = req.body;
+app.post('/initiate-evaluation-task-batch', async (req, res) => {
+  const { urls, evaluation_criteria } = req.body;
 
   const data_extraction_goal = `Evaluate the website based on the following criteria: ${evaluation_criteria.join(', ')}.`;
 
@@ -77,26 +77,30 @@ app.post('/initiate-evaluation-task', async (req, res) => {
     type: "object",
     properties: {
       compliance: { type: "boolean" },
-      issues: { type: "array", items: { type: "string" } }
+      issues: { type: "array", items: { type: "string" } },
+      passed: { type: "array", items: { type: "string" } }
     },
-    required: ["compliance", "issues"]
+    required: ["compliance", "issues", "passed"]
   };
 
   try {
-    const response = await axios.post(BASE_URL, {
-      url,
-      data_extraction_goal,
-      proxy_location: 'RESIDENTIAL',
-      extracted_information_schema
-    }, {
-      headers: {
-        'x-api-key': API_KEY
-      }
-    });
+    const batchResponses = await Promise.all(urls.map(async (url) => {
+      const response = await axios.post(BASE_URL, {
+        url,
+        data_extraction_goal,
+        proxy_location: 'RESIDENTIAL',
+        extracted_information_schema
+      }, {
+        headers: {
+          'x-api-key': API_KEY
+        }
+      });
+      return { url, task_id: response.data.task_id };
+    }));
 
-    res.json({ task_id: response.data.task_id });
+    res.json({ batchResponses });
   } catch (error) {
-    console.error('Error initiating evaluation task:', error.message);
+    console.error('Error initiating evaluation task batch:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
