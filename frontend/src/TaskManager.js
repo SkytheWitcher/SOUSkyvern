@@ -26,7 +26,7 @@ const tasks = {
     'Check the availability and locations of hearing loops.',
     'Check the provision of captions on videos and TV screens.',
     'Check the availability of flashing, visual fire alarms or pagers.',
-    'Check the availability of British Sign Language (BSL) tours.'
+    'Check the availability of American Sign Language (ASL) tours.'
   ],
   autisticCustomers: [
     'Check the availability of fast-track queue opportunities.',
@@ -215,7 +215,7 @@ function TaskManager() {
               {loading ? 'Evaluating...' : 'Evaluate Deaf or Hearing Loss'}
             </button>
             <button onClick={() => initiateEvaluationTasks(tasks.autisticCustomers)} disabled={loading}>
-              {loading ? 'Evaluating...' : 'Evaluate Autistic Customers'}
+              {loading ? 'Evaluating...' : 'Evaluate Customers with Autism'}
             </button>
             <button onClick={() => initiateEvaluationTasks(tasks.customersWithDementia)} disabled={loading}>
               {loading ? 'Evaluating...' : 'Evaluate Customers with Dementia'}
