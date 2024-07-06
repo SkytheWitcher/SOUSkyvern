@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import TaskManager from './TaskManager';
+import TaskHistory from './TaskHistory'; // Import the new TaskHistory component
+import { BrowserRouter as Router, Route, Routes, Link } from 'react-router-dom';
 import { auth } from './firebaseConfig';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'firebase/auth';
+import { FaBars } from 'react-icons/fa';
 import './App.css';
 
 function App() {
@@ -11,6 +14,14 @@ function App() {
   const [error, setError] = useState('');
   const [resetEmail, setResetEmail] = useState('');
   const [showResetInput, setShowResetInput] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false); // State for the hamburger menu
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(user => {
+      setUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const getErrorMessage = (errorCode) => {
     switch (errorCode) {
@@ -71,46 +82,72 @@ function App() {
     }
   };
 
+  const toggleMenu = () => {
+    setMenuOpen(!menuOpen);
+  };
+
   return (
-    <div className="App">
-      <h1>SOUSkyvern WCAG Evaluator</h1>
-      {user ? (
-        <div>
-          <h1>Welcome, {user.email}</h1>
-          <button onClick={handleLogout}>Logout</button>
-          <TaskManager />
-        </div>
-      ) : (
-        <div>
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <button onClick={handleLogin}>Login</button>
-          <button onClick={handleRegister}>Register</button>
-          <button onClick={handleForgotPassword}>
-            {showResetInput ? 'Send Reset Email' : 'Forgot Password'}
-          </button>
-          {showResetInput && (
-            <input 
-              type="email" 
-              placeholder="Enter email for password reset" 
-              value={resetEmail} 
-              onChange={(e) => setResetEmail(e.target.value)} 
-            />
+    <Router>
+      <div className="App">
+        <header>
+          <h1>SOUSkyvern WCAG Evaluator</h1>
+          {user && (
+            <div className="menu-container">
+              <FaBars className="hamburger-icon" onClick={toggleMenu} />
+              {menuOpen && (
+                <div className="dropdown-menu">
+                  <Link to="/" onClick={toggleMenu}>Home</Link>
+                  <Link to="/history" onClick={toggleMenu}>History</Link>
+                  <button onClick={handleLogout}>Logout</button>
+                </div>
+              )}
+            </div>
           )}
-          {error && <p>{error}</p>}
-        </div>
-      )}
-    </div>
+        </header>
+        <Routes>
+          <Route path="/" element={
+            user ? (
+              <div>
+                <h1>Welcome, {user.email}</h1>
+                <TaskManager />
+              </div>
+            ) : (
+              <div>
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+                <input
+                  type="password"
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <button onClick={handleLogin}>Login</button>
+                <button onClick={handleRegister}>Register</button>
+                <button onClick={handleForgotPassword}>
+                  {showResetInput ? 'Send Reset Email' : 'Forgot Password'}
+                </button>
+                {showResetInput && (
+                  <input 
+                    type="email" 
+                    placeholder="Enter email for password reset" 
+                    value={resetEmail} 
+                    onChange={(e) => setResetEmail(e.target.value)} 
+                  />
+                )}
+                {error && <p>{error}</p>}
+              </div>
+            )
+          } />
+          <Route path="/history" element={
+            user ? <TaskHistory /> : <p>Please log in to view history.</p>
+          } />
+        </Routes>
+      </div>
+    </Router>
   );
 }
 
