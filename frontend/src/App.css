@@ -117,3 +117,142 @@ textarea {
 .results li:last-child {
   border-bottom: none;
 }
+
+.menu-container {
+  position: relative;
+  display: inline-block;
+}
+
+.hamburger-icon {
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.dropdown-menu {
+  display: block;
+  position: absolute;
+  right: 0;
+  background-color: #333;
+  border: 1px solid #444;
+  box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.2);
+  z-index: 1;
+}
+
+.dropdown-menu button {
+  color: white;
+  padding: 12px 16px;
+  text-decoration: none;
+  display: block;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.dropdown-menu button:hover {
+  background-color: #575757;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  background-color: #333;
+  color: white;
+}
+
+header h1 {
+  margin: 0;
+}
+
+.dropdown-menu {
+  background-color: #333;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 0; /* Removed padding here */
+}
+
+.dropdown-menu a,
+.dropdown-menu button {
+  display: block;
+  color: white;
+  padding: 10px;
+  margin: 0; /* Added margin 0 to ensure no default margin is applied */
+  text-decoration: none;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  box-sizing: border-box; /* Ensure the box model is consistent */
+}
+
+.dropdown-menu a:hover,
+.dropdown-menu button:hover {
+  background-color: #555;
+}
+
+.task-history {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.task-card {
+  background-color: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.evaluation-card {
+  background-color: #333;
+  border: 1px solid #555;
+  border-radius: 6px;
+  padding: 15px;
+  margin-top: 15px;
+}
+
+.criteria-list, .passed-list, .issues-list {
+  background-color: #3a3a3a;
+  border: 1px solid #666;
+  border-radius: 4px;
+  padding: 10px;
+  margin-top: 10px;
+}
+
+.result-card {
+  background-color: #2f2f2f;
+  border: 1px solid #555;
+  border-radius: 6px;
+  padding: 15px;
+  margin-top: 15px;
+}
+
+h3, h4, h5, h6 {
+  color: #f0f0f0;
+  margin-bottom: 10px;
+}
+
+ul {
+  padding-left: 20px;
+}
+
+li {
+  margin-bottom: 5px;
+}
+
+button {
+  background-color: #d32f2f;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+button:hover {
+  background-color: #b71c1c;
+}
