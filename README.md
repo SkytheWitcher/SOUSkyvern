@@ -72,7 +72,7 @@ npm start
 
 ### 8. Access the Application
 
-Open your web browser and go to `http://localhost:3000` to access the WCAG Compliance Checker application.
+Open your web browser and go to `http://localhost:3001` to access the WCAG Compliance Checker application.
 
 ## Summary of Commands
 
@@ -101,4 +101,4 @@ npm install
 npm start
 ```
 
-Open your web browser and go to `http://localhost:3000`.
+Open your web browser and go to `http://localhost:3001`.
