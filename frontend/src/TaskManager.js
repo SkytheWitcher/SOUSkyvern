@@ -1,5 +1,9 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { db } from './firestoreConfig';
+import { collection, addDoc, doc } from 'firebase/firestore';
+import { updateDoc, arrayUnion } from 'firebase/firestore';  // Add this line
+import { auth } from './firebaseConfig';
 import './App.css';
 
 const tasks = {
@@ -26,7 +30,7 @@ const tasks = {
     'Check the availability and locations of hearing loops.',
     'Check the provision of captions on videos and TV screens.',
     'Check the availability of flashing, visual fire alarms or pagers.',
-    'Check the availability of American Sign Language (ASL) tours.'
+    'Check the availability of British Sign Language (BSL) tours.'
   ],
   autisticCustomers: [
     'Check the availability of fast-track queue opportunities.',
@@ -67,6 +71,59 @@ function TaskManager() {
   const [extractedLinks, setExtractedLinks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [taskResults, setTaskResults] = useState({});
+  const user = auth.currentUser;
+  const [currentTaskId, setCurrentTaskId] = useState(null);
+
+  const saveTaskToHistory = async (task) => {
+    try {
+      const docRef = await addDoc(collection(db, "taskHistory"), { ...task, userId: user.uid });
+      return docRef.id;
+    } catch (error) {
+      console.error("Error saving task to history:", error);
+    }
+  };
+
+  const updateTaskHistory = async (taskId, evaluation) => {
+    try {
+      const taskRef = doc(db, "taskHistory", taskId);
+      await updateDoc(taskRef, {
+        evaluations: arrayUnion(evaluation)
+      });
+    } catch (error) {
+      console.error("Error updating task history:", error);
+    }
+  };
+
+  const pollTaskStatus = async (task_id) => {
+    let status = 'queued';
+    let result = null;
+    while (status === 'queued' || status === 'running') {
+      try {
+        const response = await axios.get(`http://localhost:3000/task-status/${task_id}`);
+        result = response.data;
+        status = result.status;
+        if (status === 'complete') {
+          return result;
+        }
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } catch (error) {
+        console.error('Error checking task status:', error);
+        break;
+      }
+    }
+    return result;
+  };
+
+  const filterLinks = (links) => {
+    const uniqueLinks = [...new Set(links)];
+    return uniqueLinks.filter(link => {
+      const phoneRegex = /^tel:/;
+      const emailRegex = /^mailto:/;
+      const socialMediaRegex = /facebook\.com|instagram\.com|twitter\.com|youtube\.com|flickr\.com|foursquare\.com/;
+      const imageFileRegex = /\.(png|jpe?g|gif|bmp|svg)$/i;
+      return !(phoneRegex.test(link) || emailRegex.test(link) || socialMediaRegex.test(link) || imageFileRegex.test(link));
+    });
+  };
 
   const initiateCheckAndExtractTask = async () => {
     setLoading(true);
@@ -75,7 +132,6 @@ function TaskManager() {
       const response = await axios.post('http://localhost:3000/initiate-check-and-extract-task', { url });
       const { task_id } = response.data;
 
-      // Poll for task completion
       const taskStatus = await pollTaskStatus(task_id);
       const { has_widget, reasoning, links } = taskStatus.extracted_information;
 
@@ -89,56 +145,44 @@ function TaskManager() {
       } else {
         alert('Accessibility widget found!');
       }
-    } catch (error) {
-      console.error('Error initiating check and extract task:', error);
-      setLoading(false);
+
+      const task = { url, has_widget, reasoning, links: filteredLinks, timestamp: new Date(), evaluations: [] };
+    const taskId = await saveTaskToHistory(task);
+    setCurrentTaskId(taskId); // Set the current task ID
+    return taskId;
+
+  } catch (error) {
+    console.error('Error initiating check and extract task:', error);
+    setLoading(false);
+  }
+};
+
+const initiateEvaluationTasks = async (criteria) => {
+  setLoading(true);
+  const batchSize = 5;
+  console.log(`Total links to evaluate: ${extractedLinks.length}`);
+  console.log(`Batch size: ${batchSize}`);
+  const batches = [];
+
+  for (let i = 0; i < extractedLinks.length; i += batchSize) {
+    const batch = extractedLinks.slice(i, i + batchSize);
+    batches.push(batch);
+  }
+
+  try {
+    if (!currentTaskId) {
+      throw new Error('No task ID found. Please check a website first.');
     }
-  };
+    await Promise.all(batches.map(batch => initiateEvaluationTaskBatch(batch, criteria, currentTaskId)));
+  } catch (error) {
+    console.error('Error processing batches:', error);
+    alert(error.message);
+  }
 
-  const pollTaskStatus = async (task_id) => {
-    let status = 'queued';
-    let result = null;
+  setLoading(false);
+};
 
-    while (status === 'queued' || status === 'running') {
-      try {
-        console.log(`Polling task status for task ID: ${task_id}`);
-        const response = await axios.get(`http://localhost:3000/task-status/${task_id}`);
-        result = response.data;
-        status = result.status;
-
-        if (status === 'complete') {
-          console.log(`Task ID: ${task_id} completed.`);
-          return result;
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 2000)); // wait for 2 seconds before polling again
-      } catch (error) {
-        console.error('Error checking task status:', error);
-        break;
-      }
-    }
-
-    return result;
-  };
-
-  const isIgnoredLink = (link) => {
-    const phoneRegex = /^tel:/;
-    const emailRegex = /^mailto:/;
-    const socialMediaRegex = /facebook\.com|instagram\.com|twitter\.com|youtube\.com|flickr\.com|foursquare\.com/;
-    const imageFileRegex = /\.(png|jpe?g|gif|bmp|svg)$/i;
-    return phoneRegex.test(link) || emailRegex.test(link) || socialMediaRegex.test(link) || imageFileRegex.test(link);
-  };
-
-  const filterLinks = (links) => {
-    const uniqueLinks = [...new Set(links)];
-    return uniqueLinks.filter(link => !isIgnoredLink(link));
-  };
-
-  const handleIgnoreLink = (link) => {
-    setExtractedLinks(prevLinks => prevLinks.filter(l => l !== link));
-  };
-
-  const initiateEvaluationTaskBatch = async (links, criteria) => {
+  const initiateEvaluationTaskBatch = async (links, criteria, taskId) => {
     try {
       console.log(`Initiating evaluation task batch for links: ${links.join(', ')}`);
       const response = await axios.post('http://localhost:3000/initiate-evaluation-task-batch', {
@@ -147,7 +191,6 @@ function TaskManager() {
       });
       const batchResponses = response.data.batchResponses;
 
-      // Poll for task completion
       const batchResults = await Promise.all(batchResponses.map(async ({ url, task_id }) => {
         const taskStatus = await pollTaskStatus(task_id);
         const result = taskStatus.extracted_information;
@@ -163,34 +206,24 @@ function TaskManager() {
         ...prevResults,
         ...results
       }));
+
+      const evaluation = {
+        criteria,
+        results: batchResults,
+        timestamp: new Date()
+      };
+      await updateTaskHistory(taskId, evaluation);
     } catch (error) {
       console.error('Error initiating evaluation task batch:', error);
     }
   };
 
-  const initiateEvaluationTasks = async (criteria) => {
-    setLoading(true);
-    const batchSize = 5; // Number of links to evaluate in each batch
-    console.log(`Total links to evaluate: ${extractedLinks.length}`);
-    console.log(`Batch size: ${batchSize}`);
-    const batches = [];
-
-    for (let i = 0; i < extractedLinks.length; i += batchSize) {
-      const batch = extractedLinks.slice(i, i + batchSize);
-      batches.push(batch);
-    }
-
-    try {
-      await Promise.all(batches.map(batch => initiateEvaluationTaskBatch(batch, criteria)));
-    } catch (error) {
-      console.error('Error processing batches:', error);
-    }
-
-    setLoading(false);
+  const handleIgnoreLink = (link) => {
+    setExtractedLinks(prevLinks => prevLinks.filter(l => l !== link));
   };
 
   return (
-    <div className="App">
+    <div>
       <h1>SOU-Skyvern WCAG Criteria Checker</h1>
       <input
         type="text"
@@ -201,61 +234,58 @@ function TaskManager() {
       <button onClick={initiateCheckAndExtractTask} disabled={loading}>
         {loading ? 'Checking...' : 'Check Website'}
       </button>
+
       {extractedLinks.length > 0 && (
         <div>
-          <div className="task-buttons">
-            <h2>Evaluate Sections</h2>
-            <button onClick={() => initiateEvaluationTasks(tasks.mobilityImpairments)} disabled={loading}>
-              {loading ? 'Evaluating...' : 'Evaluate Mobility Impairments'}
-            </button>
-            <button onClick={() => initiateEvaluationTasks(tasks.blindOrPartiallySighted)} disabled={loading}>
-              {loading ? 'Evaluating...' : 'Evaluate Blind or Partially Sighted'}
-            </button>
-            <button onClick={() => initiateEvaluationTasks(tasks.deafOrHearingLoss)} disabled={loading}>
-              {loading ? 'Evaluating...' : 'Evaluate Deaf or Hearing Loss'}
-            </button>
-            <button onClick={() => initiateEvaluationTasks(tasks.autisticCustomers)} disabled={loading}>
-              {loading ? 'Evaluating...' : 'Evaluate Customers with Autism'}
-            </button>
-            <button onClick={() => initiateEvaluationTasks(tasks.customersWithDementia)} disabled={loading}>
-              {loading ? 'Evaluating...' : 'Evaluate Customers with Dementia'}
-            </button>
-            <button onClick={() => initiateEvaluationTasks(tasks.digitalAccessibility)} disabled={loading}>
-              {loading ? 'Evaluating...' : 'Evaluate Digital Accessibility'}
-            </button>
-          </div>
-          <div>
-            <h2>Extracted Links</h2>
-            <ul>
-              {extractedLinks.map((link, index) => (
-                <li key={index}>
-                  {link}
-                  <button onClick={() => handleIgnoreLink(link)}>Ignore</button>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <h2>Evaluate Sections</h2>
+          <button onClick={() => initiateEvaluationTasks(tasks.mobilityImpairments)} disabled={loading}>
+            {loading ? 'Evaluating...' : 'Evaluate Mobility Impairments'}
+          </button>
+          <button onClick={() => initiateEvaluationTasks(tasks.blindOrPartiallySighted)} disabled={loading}>
+            {loading ? 'Evaluating...' : 'Evaluate Blind or Partially Sighted'}
+          </button>
+          <button onClick={() => initiateEvaluationTasks(tasks.deafOrHearingLoss)} disabled={loading}>
+            {loading ? 'Evaluating...' : 'Evaluate Deaf or Hearing Loss'}
+          </button>
+          <button onClick={() => initiateEvaluationTasks(tasks.autisticCustomers)} disabled={loading}>
+            {loading ? 'Evaluating...' : 'Evaluate Autistic Customers'}
+          </button>
+          <button onClick={() => initiateEvaluationTasks(tasks.customersWithDementia)} disabled={loading}>
+            {loading ? 'Evaluating...' : 'Evaluate Customers with Dementia'}
+          </button>
+          <button onClick={() => initiateEvaluationTasks(tasks.digitalAccessibility)} disabled={loading}>
+            {loading ? 'Evaluating...' : 'Evaluate Digital Accessibility'}
+          </button>
         </div>
       )}
+
+      <div>
+        <h2>Extracted Links</h2>
+        {extractedLinks.map((link, index) => (
+          <div key={index}>
+            {link}
+            <button onClick={() => handleIgnoreLink(link)}>Ignore</button>
+          </div>
+        ))}
+      </div>
+
       {Object.keys(taskResults).length > 0 && (
-        <div className="results">
+        <div>
           <h2>Task Results</h2>
-          <ul>
-            {Object.keys(taskResults).map((link, index) => {
-              const result = taskResults[link];
-              if (!result) return null;
-              const issues = result.issues || [];
-              const passed = result.passed || [];
-              return (
-                <li key={index}>
-                  <p><strong>{link}</strong></p>
-                  <p>Compliance: {result.compliance ? 'Yes' : 'No'}</p>
-                  <p>Passed: {passed.join(' ')}</p>
-                  <p>Issues: {issues.join(' ')}</p>
-                </li>
-              );
-            })}
-          </ul>
+          {Object.keys(taskResults).map((link, index) => {
+            const result = taskResults[link];
+            if (!result) return null;
+            const issues = result.issues || [];
+            const passed = result.passed || [];
+            return (
+              <div key={index}>
+                <p>Link: {link}</p>
+                <p>Compliance: {result.compliance ? 'Yes' : 'No'}</p>
+                <p>Passed: {passed.join(' ')}</p>
+                <p>Issues: {issues.join(' ')}</p>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
