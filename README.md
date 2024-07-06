@@ -102,3 +102,13 @@ npm start
 ```
 
 Open your web browser and go to `http://localhost:3001`.
+
+## Using Application
+
+1. Register an account and login.
+2. Enter a website link of your choice for evaluation and press 'check website.'
+3. The application will now go to the user entered website and evaluate whether or not an accessible widget is found. This takes less than 5 minutes.
+4. If an accessibility widget is found, the application will stop there. If an accessibiltiy widget is not found, all webpage links will be extracted from the website.
+5. The user can now ignore which links they want ignored. Once the user is left with the links they want to evaluate, they can then select an evaluation option (For the purpose of this research, we only used 'Evaluate Digital Accessibility,' but other evaluation options are there).
+6. Once an evaluation option is selected, the application will not evaluation selected links against the criteria. This takes about 5 minutes. Once it is done, the results of this evaluation will be shown at the bottom of the page.
+7. Users can also go into the history tab to view and manage past evaluations.
